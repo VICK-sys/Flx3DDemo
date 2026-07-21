@@ -4,6 +4,8 @@ Software-rendered 3D models in [HaxeFlixel](https://haxeflixel.com/). A `ModelSp
 
 The renderer intentionally reproduces the look of early 3D consoles: affine texture mapping (textures wobble slightly as surfaces turn), integer vertex snapping, and nearest-neighbor sampling. It is meant for low-poly props, pickups, and backgrounds inside a 2D game, not for building a full 3D game.
 
+![Demo: textured cube, flat-shaded icosahedron, sphere primitive, MTL-colored house](screenshots/demo.png)
+
 ## Usage
 
 ```haxe
@@ -28,6 +30,10 @@ A model that fails to load shows a magenta placeholder and logs a warning.
 - `textureShading` — strength of directional shading on textured models (0 disables)
 - `fogEnabled`, `fogColor`, `fogNear`, `fogFar` — distance fog; faces fade toward the fog color with depth
 - `wireframe`, `wireColor`, `wireThickness` — draw edges instead of filled faces
+
+| Wireframe | Fog |
+| --- | --- |
+| ![Wireframe mode](screenshots/wireframe.png) | ![Distance fog](screenshots/fog.png) |
 
 `worldToScreen(x, y, z)` returns the viewport position of a model-space point, for pinning 2D sprites (labels, particles) to a spot on the model.
 
