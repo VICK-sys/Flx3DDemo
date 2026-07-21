@@ -6,6 +6,7 @@ typedef ModelFace =
 {
 	var v:Array<Int>;
 	var uv:Array<Int>;
+	var color:Int;
 }
 
 typedef Model =
@@ -19,14 +20,28 @@ class ObjLoader
 {
 	public static function load(path:String):Model
 	{
-		return parse(Assets.getText(path));
+		var text = Assets.getText(path);
+		var mtlText:String = null;
+		var mtlName = findMtlLib(text);
+		if (mtlName != null)
+		{
+			var dir = path.lastIndexOf("/") >= 0 ? path.substr(0, path.lastIndexOf("/") + 1) : "";
+			try
+			{
+				mtlText = Assets.getText(dir + mtlName);
+			}
+			catch (e:Dynamic) {}
+		}
+		return parse(text, mtlText);
 	}
 
-	public static function parse(text:String):Model
+	public static function parse(text:String, ?mtlText:String):Model
 	{
+		var materials = mtlText != null ? parseMtl(mtlText) : new Map<String, Int>();
 		var vertices:Array<Float> = [];
 		var uvs:Array<Float> = [];
 		var faces:Array<ModelFace> = [];
+		var currentColor = -1;
 
 		for (line in text.split("\n"))
 		{
@@ -44,6 +59,8 @@ class ObjLoader
 				case "vt":
 					uvs.push(Std.parseFloat(parts[1]));
 					uvs.push(1 - Std.parseFloat(parts[2]));
+				case "usemtl":
+					currentColor = materials.exists(parts[1]) ? materials.get(parts[1]) : -1;
 				case "f":
 					var vIdx:Array<Int> = [];
 					var uvIdx:Array<Int> = [];
@@ -54,13 +71,52 @@ class ObjLoader
 						uvIdx.push(refs.length > 1 && refs[1] != "" ? Std.parseInt(refs[1]) - 1 : -1);
 					}
 					for (i in 1...vIdx.length - 1)
-						faces.push({v: [vIdx[0], vIdx[i], vIdx[i + 1]], uv: [uvIdx[0], uvIdx[i], uvIdx[i + 1]]});
+						faces.push({v: [vIdx[0], vIdx[i], vIdx[i + 1]], uv: [uvIdx[0], uvIdx[i], uvIdx[i + 1]], color: currentColor});
 				default:
 			}
 		}
 
 		normalize(vertices);
 		return {vertices: vertices, uvs: uvs, faces: faces};
+	}
+
+	static function findMtlLib(text:String):Null<String>
+	{
+		for (line in text.split("\n"))
+		{
+			line = StringTools.trim(line);
+			if (StringTools.startsWith(line, "mtllib "))
+				return StringTools.trim(line.substr(7));
+		}
+		return null;
+	}
+
+	static function parseMtl(text:String):Map<String, Int>
+	{
+		var materials = new Map<String, Int>();
+		var current:String = null;
+		for (line in text.split("\n"))
+		{
+			line = StringTools.trim(line);
+			var parts = line.split(" ").filter(p -> p != "");
+			if (parts.length == 0)
+				continue;
+			switch (parts[0])
+			{
+				case "newmtl":
+					current = parts[1];
+				case "Kd":
+					if (current != null)
+					{
+						var r = Std.int(Std.parseFloat(parts[1]) * 255);
+						var g = Std.int(Std.parseFloat(parts[2]) * 255);
+						var b = Std.int(Std.parseFloat(parts[3]) * 255);
+						materials.set(current, (r << 16) | (g << 8) | b);
+					}
+				default:
+			}
+		}
+		return materials;
 	}
 
 	static function normalize(vertices:Array<Float>):Void

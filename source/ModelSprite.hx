@@ -2,6 +2,7 @@ package;
 
 import ObjLoader.Model;
 import flixel.FlxSprite;
+import flixel.math.FlxPoint;
 import flixel.util.FlxColor;
 import openfl.Vector;
 import openfl.display.BitmapData;
@@ -25,6 +26,17 @@ class ModelSprite extends FlxSprite
 	public var vertexSnap:Bool = true;
 	public var focal:Float = 240;
 	public var camDistance:Float = 3.2;
+	public var camYaw:Float = 0;
+	public var camPitch:Float = 0;
+	public var zoom:Float = 1;
+	public var textureShading:Float = 1;
+	public var fogEnabled:Bool = false;
+	public var fogColor:Int = 0x000000;
+	public var fogNear:Float = 2.4;
+	public var fogFar:Float = 4.6;
+	public var wireframe:Bool = false;
+	public var wireColor:Int = 0x33FF66;
+	public var wireThickness:Float = 1;
 
 	var modelPath:String;
 	var needsReload:Bool = false;
@@ -38,9 +50,7 @@ class ModelSprite extends FlxSprite
 	var scrY:Array<Float> = [];
 	var visFace:Array<Int> = [];
 	var visDepth:Array<Float> = [];
-	var visNX:Array<Float> = [];
-	var visNY:Array<Float> = [];
-	var visNZ:Array<Float> = [];
+	var visBright:Array<Float> = [];
 	var visCount:Int = 0;
 	var order:Array<Int> = [];
 	var v2d:Vector<Float> = new Vector<Float>();
@@ -54,11 +64,22 @@ class ModelSprite extends FlxSprite
 	var lastScale:Float = Math.NaN;
 	var lastFocal:Float = Math.NaN;
 	var lastCamDistance:Float = Math.NaN;
+	var lastCamYaw:Float = Math.NaN;
+	var lastCamPitch:Float = Math.NaN;
+	var lastZoom:Float = Math.NaN;
 	var lastSnap:Bool = false;
 	var lastTexture:BitmapData;
 	var lastModel:Model;
 	var lastBaseColor:Int = 0;
 	var lastAmbient:Float = Math.NaN;
+	var lastTextureShading:Float = Math.NaN;
+	var lastFogEnabled:Bool = false;
+	var lastFogColor:Int = 0;
+	var lastFogNear:Float = Math.NaN;
+	var lastFogFar:Float = Math.NaN;
+	var lastWireframe:Bool = false;
+	var lastWireColor:Int = 0;
+	var lastWireThickness:Float = Math.NaN;
 
 	static var lightX:Float;
 	static var lightY:Float;
@@ -88,27 +109,71 @@ class ModelSprite extends FlxSprite
 	public function loadModel(path:String):ModelSprite
 	{
 		modelPath = path;
-		model = ModelCache.get(path);
-		if (model == null)
+		var m = ModelCache.get(path);
+		if (m == null)
 		{
+			model = null;
 			pixels.fillRect(clearRect, FlxColor.MAGENTA);
 			dirty = true;
 			return this;
 		}
+		return setModel(m);
+	}
 
-		var count = Std.int(model.vertices.length / 3);
+	public function setModel(m:Model):ModelSprite
+	{
+		model = m;
+		var count = Std.int(m.vertices.length / 3);
 		camX.resize(count);
 		camY.resize(count);
 		camZ.resize(count);
 		scrX.resize(count);
 		scrY.resize(count);
-		visFace.resize(model.faces.length);
-		visDepth.resize(model.faces.length);
-		visNX.resize(model.faces.length);
-		visNY.resize(model.faces.length);
-		visNZ.resize(model.faces.length);
+		visFace.resize(m.faces.length);
+		visDepth.resize(m.faces.length);
+		visBright.resize(m.faces.length);
 		lastRotX = Math.NaN;
 		return this;
+	}
+
+	public function worldToScreen(vx:Float, vy:Float, vz:Float, ?point:FlxPoint):FlxPoint
+	{
+		if (point == null)
+			point = FlxPoint.get();
+
+		vx *= modelScale;
+		vy *= modelScale;
+		vz *= modelScale;
+
+		var cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+		var cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+		var cosZ = Math.cos(rotZ), sinZ = Math.sin(rotZ);
+		var cosYw = Math.cos(camYaw), sinYw = Math.sin(camYaw);
+		var cosP = Math.cos(camPitch), sinP = Math.sin(camPitch);
+
+		var x1 = vx * cosY + vz * sinY;
+		var z1 = -vx * sinY + vz * cosY;
+		var y1 = vy * cosX - z1 * sinX;
+		var z2 = vy * sinX + z1 * cosX;
+		var x2 = x1 * cosZ - y1 * sinZ;
+		var y2 = x1 * sinZ + y1 * cosZ;
+
+		var x3 = x2 * cosYw - z2 * sinYw;
+		var z3 = x2 * sinYw + z2 * cosYw;
+		var y3 = y2 * cosP - z3 * sinP;
+		var z4 = y2 * sinP + z3 * cosP;
+
+		var zc = z4 + camDistance;
+		var invZ = zc > 0.1 ? focal * zoom / zc : 0;
+		var sx = frameWidth / 2 + x3 * invZ;
+		var sy = frameHeight / 2 - y3 * invZ;
+		if (vertexSnap)
+		{
+			sx = Std.int(sx);
+			sy = Std.int(sy);
+		}
+		point.set(sx, sy);
+		return point;
 	}
 
 	override public function update(elapsed:Float):Void
@@ -143,7 +208,7 @@ class ModelSprite extends FlxSprite
 		shape = null;
 		camX = camY = camZ = scrX = scrY = null;
 		visFace = order = null;
-		visDepth = visNX = visNY = visNZ = null;
+		visDepth = visBright = null;
 		v2d = uvt = null;
 		tris = null;
 	}
@@ -157,7 +222,10 @@ class ModelSprite extends FlxSprite
 	function changed():Bool
 	{
 		if (rotX == lastRotX && rotY == lastRotY && rotZ == lastRotZ && modelScale == lastScale && focal == lastFocal && camDistance == lastCamDistance
-			&& vertexSnap == lastSnap && texture == lastTexture && model == lastModel && baseColor == lastBaseColor && ambient == lastAmbient)
+			&& camYaw == lastCamYaw && camPitch == lastCamPitch && zoom == lastZoom && vertexSnap == lastSnap && texture == lastTexture
+			&& model == lastModel && baseColor == lastBaseColor && ambient == lastAmbient && textureShading == lastTextureShading
+			&& fogEnabled == lastFogEnabled && fogColor == lastFogColor && fogNear == lastFogNear && fogFar == lastFogFar
+			&& wireframe == lastWireframe && wireColor == lastWireColor && wireThickness == lastWireThickness)
 			return false;
 
 		lastRotX = rotX;
@@ -166,11 +234,22 @@ class ModelSprite extends FlxSprite
 		lastScale = modelScale;
 		lastFocal = focal;
 		lastCamDistance = camDistance;
+		lastCamYaw = camYaw;
+		lastCamPitch = camPitch;
+		lastZoom = zoom;
 		lastSnap = vertexSnap;
 		lastTexture = texture;
 		lastModel = model;
 		lastBaseColor = baseColor;
 		lastAmbient = ambient;
+		lastTextureShading = textureShading;
+		lastFogEnabled = fogEnabled;
+		lastFogColor = fogColor;
+		lastFogNear = fogNear;
+		lastFogFar = fogFar;
+		lastWireframe = wireframe;
+		lastWireColor = wireColor;
+		lastWireThickness = wireThickness;
 		return true;
 	}
 
@@ -181,6 +260,15 @@ class ModelSprite extends FlxSprite
 		return da < db ? 1 : (da > db ? -1 : 0);
 	}
 
+	function fogFactor(slot:Int):Float
+	{
+		if (!fogEnabled)
+			return 0;
+		var z = visDepth[slot] / 3;
+		var f = (z - fogNear) / (fogFar - fogNear);
+		return f < 0 ? 0 : (f > 1 ? 1 : f);
+	}
+
 	function render():Void
 	{
 		var g = shape.graphics;
@@ -189,8 +277,11 @@ class ModelSprite extends FlxSprite
 		var cosX = Math.cos(rotX), sinX = Math.sin(rotX);
 		var cosY = Math.cos(rotY), sinY = Math.sin(rotY);
 		var cosZ = Math.cos(rotZ), sinZ = Math.sin(rotZ);
+		var cosYw = Math.cos(camYaw), sinYw = Math.sin(camYaw);
+		var cosP = Math.cos(camPitch), sinP = Math.sin(camPitch);
 		var cx = frameWidth / 2;
 		var cy = frameHeight / 2;
+		var f2 = focal * zoom;
 
 		var verts = model.vertices;
 		var count = Std.int(verts.length / 3);
@@ -207,14 +298,19 @@ class ModelSprite extends FlxSprite
 			var x2 = x1 * cosZ - y1 * sinZ;
 			var y2 = x1 * sinZ + y1 * cosZ;
 
-			var zc = z2 + camDistance;
-			camX[i] = x2;
-			camY[i] = y2;
+			var x3 = x2 * cosYw - z2 * sinYw;
+			var z3 = x2 * sinYw + z2 * cosYw;
+			var y3 = y2 * cosP - z3 * sinP;
+			var z4 = y2 * sinP + z3 * cosP;
+
+			var zc = z4 + camDistance;
+			camX[i] = x3;
+			camY[i] = y3;
 			camZ[i] = zc;
 
-			var invZ = zc > 0.1 ? focal / zc : 0;
-			var sx = cx + x2 * invZ;
-			var sy = cy - y2 * invZ;
+			var invZ = zc > 0.1 ? f2 / zc : 0;
+			var sx = cx + x3 * invZ;
+			var sy = cy - y3 * invZ;
 			if (vertexSnap)
 			{
 				sx = Std.int(sx);
@@ -242,11 +338,20 @@ class ModelSprite extends FlxSprite
 			if (nx * camX[a] + ny * camY[a] + nz * camZ[a] >= 0)
 				continue;
 
+			var len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+			var bright = ambient;
+			if (len > 0)
+			{
+				var d = (nx * lightX + ny * lightY + nz * lightZ) / len;
+				if (d > 0)
+					bright += (1 - ambient) * d;
+			}
+			if (bright > 1)
+				bright = 1;
+
 			visFace[visCount] = fi;
 			visDepth[visCount] = camZ[a] + camZ[b] + camZ[c];
-			visNX[visCount] = nx;
-			visNY[visCount] = ny;
-			visNZ[visCount] = nz;
+			visBright[visCount] = bright;
 			visCount++;
 		}
 
@@ -255,7 +360,20 @@ class ModelSprite extends FlxSprite
 			order[i] = i;
 		order.sort(depthComparator);
 
-		if (texture != null)
+		if (wireframe)
+		{
+			g.lineStyle(wireThickness, 0xFF000000 | wireColor);
+			for (i in 0...visCount)
+			{
+				var f = faces[visFace[order[i]]];
+				g.moveTo(scrX[f.v[0]], scrY[f.v[0]]);
+				g.lineTo(scrX[f.v[1]], scrY[f.v[1]]);
+				g.lineTo(scrX[f.v[2]], scrY[f.v[2]]);
+				g.lineTo(scrX[f.v[0]], scrY[f.v[0]]);
+			}
+			g.lineStyle();
+		}
+		else if (texture != null)
 		{
 			v2d.length = 0;
 			tris.length = 0;
@@ -277,29 +395,55 @@ class ModelSprite extends FlxSprite
 			g.beginBitmapFill(texture, null, false, false);
 			g.drawTriangles(v2d, tris, uvt, TriangleCulling.NONE);
 			g.endFill();
-		}
-		else
-		{
+
+			var fogR = (fogColor >> 16) & 0xFF;
+			var fogG = (fogColor >> 8) & 0xFF;
+			var fogB = fogColor & 0xFF;
 			for (i in 0...visCount)
 			{
 				var slot = order[i];
-				var nx = visNX[slot], ny = visNY[slot], nz = visNZ[slot];
-				var len = Math.sqrt(nx * nx + ny * ny + nz * nz);
-				var b = ambient;
-				if (len > 0)
-				{
-					var d = (nx * lightX + ny * lightY + nz * lightZ) / len;
-					if (d > 0)
-						b += (1 - ambient) * d;
-				}
-				if (b > 1)
-					b = 1;
+				var bright = 1 - (1 - visBright[slot]) * textureShading;
+				var fog = fogFactor(slot);
+				var alpha = 1 - bright * (1 - fog);
+				if (alpha <= 0.004)
+					continue;
 
-				var r = Std.int(((baseColor >> 16) & 0xFF) * b);
-				var gr = Std.int(((baseColor >> 8) & 0xFF) * b);
-				var bl = Std.int((baseColor & 0xFF) * b);
+				var r = Std.int(fogR * fog / alpha);
+				var gr = Std.int(fogG * fog / alpha);
+				var bl = Std.int(fogB * fog / alpha);
+				if (r > 255) r = 255;
+				if (gr > 255) gr = 255;
+				if (bl > 255) bl = 255;
 
 				var f = faces[visFace[slot]];
+				g.beginFill((r << 16) | (gr << 8) | bl, alpha);
+				g.moveTo(scrX[f.v[0]], scrY[f.v[0]]);
+				g.lineTo(scrX[f.v[1]], scrY[f.v[1]]);
+				g.lineTo(scrX[f.v[2]], scrY[f.v[2]]);
+				g.endFill();
+			}
+		}
+		else
+		{
+			var fogR = (fogColor >> 16) & 0xFF;
+			var fogG = (fogColor >> 8) & 0xFF;
+			var fogB = fogColor & 0xFF;
+			for (i in 0...visCount)
+			{
+				var slot = order[i];
+				var f = faces[visFace[slot]];
+				var bright = visBright[slot];
+				var fog = fogFactor(slot);
+				var keep = bright * (1 - fog);
+
+				var base = f.color >= 0 ? f.color : baseColor;
+				var r = Std.int(((base >> 16) & 0xFF) * keep + fogR * fog);
+				var gr = Std.int(((base >> 8) & 0xFF) * keep + fogG * fog);
+				var bl = Std.int((base & 0xFF) * keep + fogB * fog);
+				if (r > 255) r = 255;
+				if (gr > 255) gr = 255;
+				if (bl > 255) bl = 255;
+
 				g.beginFill(0xFF000000 | (r << 16) | (gr << 8) | bl);
 				g.moveTo(scrX[f.v[0]], scrY[f.v[0]]);
 				g.lineTo(scrX[f.v[1]], scrY[f.v[1]]);

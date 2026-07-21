@@ -22,8 +22,18 @@ A model that fails to load shows a magenta placeholder and logs a warning.
 - `spinX` / `spinY` / `spinZ` — automatic rotation speed in radians per second
 - `modelScale` — model size within the viewport
 - `focal`, `camDistance` — perspective strength and camera distance
+- `camYaw`, `camPitch`, `zoom` — orbit and zoom the camera instead of rotating the model
 - `vertexSnap` — toggle integer vertex snapping
 - `baseColor`, `ambient` — flat-shading color and minimum brightness (untextured models)
+- `textureShading` — strength of directional shading on textured models (0 disables)
+- `fogEnabled`, `fogColor`, `fogNear`, `fogFar` — distance fog; faces fade toward the fog color with depth
+- `wireframe`, `wireColor`, `wireThickness` — draw edges instead of filled faces
+
+`worldToScreen(x, y, z)` returns the viewport position of a model-space point, for pinning 2D sprites (labels, particles) to a spot on the model.
+
+### Primitives
+
+`Primitives.cube()`, `plane()`, `sphere(latSegments, lonSegments)`, and `cylinder(segments)` generate models in code — no OBJ files needed. Assign one with `sprite.setModel(...)`.
 
 Parsed models are cached and shared: loading the same OBJ in several sprites parses it once. `ModelCache.clear()` frees the cache, and `ModelCache.enableAutoClear()` clears automatically on every state switch; sprites that survive a switch reload their model on the next update.
 
@@ -31,7 +41,9 @@ Rendering only happens when something changed — a sprite that is not rotating 
 
 ## Model format
 
-Wavefront OBJ: `v`, `vt`, and `f` records. Quads and n-gons are triangulated on load, and models are normalized to a standard size, so exports from Blender or elsewhere work without manual scaling. Faces must use the standard counter-clockwise winding.
+Wavefront OBJ: `v`, `vt`, `f`, and `usemtl` records. Quads and n-gons are triangulated on load, and models are normalized to a standard size, so exports from Blender or elsewhere work without manual scaling. Faces must use the standard counter-clockwise winding.
+
+If the OBJ references an `.mtl` file (`mtllib`), diffuse colors (`Kd`) are applied per face on untextured models, so a Blender export with colored materials renders with those colors.
 
 OBJ files must be packaged as text. Keep them in a dedicated folder declared like this in `Project.xml`:
 
@@ -42,7 +54,7 @@ OBJ files must be packaged as text. Keep them in a dedicated folder declared lik
 
 ## Limitations
 
-- One texture per model; no MTL materials, no glTF
+- One texture per model; no glTF, no texture references in MTL files (diffuse colors only)
 - Depth is handled by sorting faces (painter's algorithm), not a depth buffer. Intersecting or strongly concave geometry can draw in the wrong order. Convex, low-poly models render correctly.
 - No near-plane clipping: geometry that gets too close to the camera disappears per-face rather than being sliced
 - Untextured rendering issues one fill per face, which is fine for low-poly models and slow past a few thousand triangles
@@ -53,4 +65,4 @@ OBJ files must be packaged as text. Keep them in a dedicated folder declared lik
 lime test html5
 ```
 
-The demo shows a crate-textured cube and a flat-shaded icosahedron. SPACE toggles spinning, arrow keys rotate both models, S toggles vertex snapping.
+The demo shows four models: a crate-textured cube (with a marker sprite pinned to one corner via `worldToScreen`), a flat-shaded icosahedron, a generated sphere primitive, and a house colored by its MTL materials. SPACE toggles spinning, arrow keys rotate, S toggles vertex snapping, W toggles wireframe, F toggles fog.
