@@ -108,20 +108,23 @@ class ModelSprite extends FlxSprite
 
 	public function loadModel(path:String):ModelSprite
 	{
-		modelPath = path;
 		var m = ModelCache.get(path);
 		if (m == null)
 		{
+			modelPath = path;
 			model = null;
 			pixels.fillRect(clearRect, FlxColor.MAGENTA);
 			dirty = true;
 			return this;
 		}
-		return setModel(m);
+		setModel(m);
+		modelPath = path;
+		return this;
 	}
 
 	public function setModel(m:Model):ModelSprite
 	{
+		modelPath = null;
 		model = m;
 		var count = Std.int(m.vertices.length / 3);
 		camX.resize(count);
