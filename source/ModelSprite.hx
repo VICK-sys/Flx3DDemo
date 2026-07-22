@@ -1,4 +1,4 @@
-package;
+﻿package;
 
 import ObjLoader.Model;
 import flixel.FlxSprite;
@@ -21,6 +21,9 @@ class ModelSprite extends FlxSprite
 	public var spinY:Float = 0.9;
 	public var spinZ:Float = 0;
 	public var modelScale:Float = 1;
+	public var pivotX:Float = 0;
+	public var pivotY:Float = 0;
+	public var pivotZ:Float = 0;
 	public var baseColor:Int = 0x8888FF;
 	public var ambient:Float = 0.35;
 	public var vertexSnap:Bool = true;
@@ -62,6 +65,9 @@ class ModelSprite extends FlxSprite
 	var lastRotY:Float = Math.NaN;
 	var lastRotZ:Float = Math.NaN;
 	var lastScale:Float = Math.NaN;
+	var lastPivotX:Float = Math.NaN;
+	var lastPivotY:Float = Math.NaN;
+	var lastPivotZ:Float = Math.NaN;
 	var lastFocal:Float = Math.NaN;
 	var lastCamDistance:Float = Math.NaN;
 	var lastCamYaw:Float = Math.NaN;
@@ -144,9 +150,9 @@ class ModelSprite extends FlxSprite
 		if (point == null)
 			point = FlxPoint.get();
 
-		vx *= modelScale;
-		vy *= modelScale;
-		vz *= modelScale;
+		vx = (vx - pivotX) * modelScale;
+		vy = (vy - pivotY) * modelScale;
+		vz = (vz - pivotZ) * modelScale;
 
 		var cosX = Math.cos(rotX), sinX = Math.sin(rotX);
 		var cosY = Math.cos(rotY), sinY = Math.sin(rotY);
@@ -158,8 +164,9 @@ class ModelSprite extends FlxSprite
 		var z1 = -vx * sinY + vz * cosY;
 		var y1 = vy * cosX - z1 * sinX;
 		var z2 = vy * sinX + z1 * cosX;
-		var x2 = x1 * cosZ - y1 * sinZ;
-		var y2 = x1 * sinZ + y1 * cosZ;
+		var x2 = x1 * cosZ - y1 * sinZ + pivotX * modelScale;
+		var y2 = x1 * sinZ + y1 * cosZ + pivotY * modelScale;
+		z2 += pivotZ * modelScale;
 
 		var x3 = x2 * cosYw - z2 * sinYw;
 		var z3 = x2 * sinYw + z2 * cosYw;
@@ -225,6 +232,7 @@ class ModelSprite extends FlxSprite
 	function changed():Bool
 	{
 		if (rotX == lastRotX && rotY == lastRotY && rotZ == lastRotZ && modelScale == lastScale && focal == lastFocal && camDistance == lastCamDistance
+			&& pivotX == lastPivotX && pivotY == lastPivotY && pivotZ == lastPivotZ
 			&& camYaw == lastCamYaw && camPitch == lastCamPitch && zoom == lastZoom && vertexSnap == lastSnap && texture == lastTexture
 			&& model == lastModel && baseColor == lastBaseColor && ambient == lastAmbient && textureShading == lastTextureShading
 			&& fogEnabled == lastFogEnabled && fogColor == lastFogColor && fogNear == lastFogNear && fogFar == lastFogFar
@@ -235,6 +243,9 @@ class ModelSprite extends FlxSprite
 		lastRotY = rotY;
 		lastRotZ = rotZ;
 		lastScale = modelScale;
+		lastPivotX = pivotX;
+		lastPivotY = pivotY;
+		lastPivotZ = pivotZ;
 		lastFocal = focal;
 		lastCamDistance = camDistance;
 		lastCamYaw = camYaw;
@@ -290,16 +301,17 @@ class ModelSprite extends FlxSprite
 		var count = Std.int(verts.length / 3);
 		for (i in 0...count)
 		{
-			var vx = verts[i * 3] * modelScale;
-			var vy = verts[i * 3 + 1] * modelScale;
-			var vz = verts[i * 3 + 2] * modelScale;
+			var vx = (verts[i * 3] - pivotX) * modelScale;
+			var vy = (verts[i * 3 + 1] - pivotY) * modelScale;
+			var vz = (verts[i * 3 + 2] - pivotZ) * modelScale;
 
 			var x1 = vx * cosY + vz * sinY;
 			var z1 = -vx * sinY + vz * cosY;
 			var y1 = vy * cosX - z1 * sinX;
 			var z2 = vy * sinX + z1 * cosX;
-			var x2 = x1 * cosZ - y1 * sinZ;
-			var y2 = x1 * sinZ + y1 * cosZ;
+			var x2 = x1 * cosZ - y1 * sinZ + pivotX * modelScale;
+			var y2 = x1 * sinZ + y1 * cosZ + pivotY * modelScale;
+			z2 += pivotZ * modelScale;
 
 			var x3 = x2 * cosYw - z2 * sinYw;
 			var z3 = x2 * sinYw + z2 * cosYw;

@@ -23,6 +23,7 @@ A model that fails to load shows a magenta placeholder and logs a warning.
 - `rotX` / `rotY` / `rotZ` — current rotation in radians
 - `spinX` / `spinY` / `spinZ` — automatic rotation speed in radians per second
 - `modelScale` — model size within the viewport
+- `pivotX` / `pivotY` / `pivotZ` — rotation pivot in model space (default center; set `pivotY = -1` to rotate around the model's base)
 - `focal`, `camDistance` — perspective strength and camera distance
 - `camYaw`, `camPitch`, `zoom` — orbit and zoom the camera instead of rotating the model
 - `vertexSnap` — toggle integer vertex snapping
