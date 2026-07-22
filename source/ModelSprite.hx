@@ -24,6 +24,8 @@ class ModelSprite extends FlxSprite
 	public var pivotX:Float = 0;
 	public var pivotY:Float = 0;
 	public var pivotZ:Float = 0;
+	public var morph:Float = 0;
+	public var morphRadius:Float = 0.8;
 	public var baseColor:Int = 0x8888FF;
 	public var ambient:Float = 0.35;
 	public var vertexSnap:Bool = true;
@@ -68,6 +70,8 @@ class ModelSprite extends FlxSprite
 	var lastPivotX:Float = Math.NaN;
 	var lastPivotY:Float = Math.NaN;
 	var lastPivotZ:Float = Math.NaN;
+	var lastMorph:Float = Math.NaN;
+	var lastMorphRadius:Float = Math.NaN;
 	var lastFocal:Float = Math.NaN;
 	var lastCamDistance:Float = Math.NaN;
 	var lastCamYaw:Float = Math.NaN;
@@ -232,7 +236,7 @@ class ModelSprite extends FlxSprite
 	function changed():Bool
 	{
 		if (rotX == lastRotX && rotY == lastRotY && rotZ == lastRotZ && modelScale == lastScale && focal == lastFocal && camDistance == lastCamDistance
-			&& pivotX == lastPivotX && pivotY == lastPivotY && pivotZ == lastPivotZ
+			&& pivotX == lastPivotX && pivotY == lastPivotY && pivotZ == lastPivotZ && morph == lastMorph && morphRadius == lastMorphRadius
 			&& camYaw == lastCamYaw && camPitch == lastCamPitch && zoom == lastZoom && vertexSnap == lastSnap && texture == lastTexture
 			&& model == lastModel && baseColor == lastBaseColor && ambient == lastAmbient && textureShading == lastTextureShading
 			&& fogEnabled == lastFogEnabled && fogColor == lastFogColor && fogNear == lastFogNear && fogFar == lastFogFar
@@ -246,6 +250,8 @@ class ModelSprite extends FlxSprite
 		lastPivotX = pivotX;
 		lastPivotY = pivotY;
 		lastPivotZ = pivotZ;
+		lastMorph = morph;
+		lastMorphRadius = morphRadius;
 		lastFocal = focal;
 		lastCamDistance = camDistance;
 		lastCamYaw = camYaw;
@@ -301,9 +307,22 @@ class ModelSprite extends FlxSprite
 		var count = Std.int(verts.length / 3);
 		for (i in 0...count)
 		{
-			var vx = (verts[i * 3] - pivotX) * modelScale;
-			var vy = (verts[i * 3 + 1] - pivotY) * modelScale;
-			var vz = (verts[i * 3 + 2] - pivotZ) * modelScale;
+			var vx = verts[i * 3];
+			var vy = verts[i * 3 + 1];
+			var vz = verts[i * 3 + 2];
+			if (morph > 0)
+			{
+				var vlen = Math.sqrt(vx * vx + vy * vy + vz * vz);
+				if (vlen < 0.000001)
+					vlen = 1;
+				var k = morph * (morphRadius / vlen - 1) + 1;
+				vx *= k;
+				vy *= k;
+				vz *= k;
+			}
+			vx = (vx - pivotX) * modelScale;
+			vy = (vy - pivotY) * modelScale;
+			vz = (vz - pivotZ) * modelScale;
 
 			var x1 = vx * cosY + vz * sinY;
 			var z1 = -vx * sinY + vz * cosY;
